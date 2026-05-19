@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather App - Prakiraan Cuaca</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: white;
+            margin-bottom: 10px;
+            font-size: 2rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .subtitle {
+            text-align: center;
+            color: rgba(255,255,255,0.9);
+            margin-bottom: 30px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .city-input {
+            padding: 12px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 30px;
+            width: 250px;
+            outline: none;
+        }
+
+        button {
+            padding: 12px 25px;
+            font-size: 16px;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            background: #ff6b6b;
+            color: white;
+            font-weight: bold;
+            transition: transform 0.2s;
+        }
+
+        button:hover {
+            background: #ff4757;
+            transform: scale(1.02);
+        }
+
+        .search-box {
+            padding: 12px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 30px;
+            width: 300px;
+            outline: none;
+            margin-bottom: 30px;
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .weather-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .weather-card {
+            background: white;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: transform 0.3s;
+        }
+
+        .weather-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .card-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 15px;
+            color: white;
+            text-align: center;
+        }
+
+        .card-header h3 {
+            font-size: 1.3rem;
+        }
+
+        .card-header .date {
+            font-size: 0.8rem;
+            opacity: 0.9;
+        }
+
+        .card-body {
+            padding: 20px;
+            text-align: center;
+        }
+
+        .temperature {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #333;
+            margin: 10px 0;
+        }
+
+        .weather-desc {
+            color: #666;
+            margin-bottom: 15px;
+            text-transform: capitalize;
+        }
+
+        .weather-details {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #eee;
+        }
+
+        .detail-item {
+            text-align: center;
+        }
+
+        .detail-label {
+            font-size: 0.7rem;
+            color: #888;
+        }
+
+        .detail-value {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .error-message {
+            background: #ffe0e0;
+            color: #d32f2f;
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: white;
+            font-size: 1.2rem;
+        }
+
+        .stats {
+            text-align: center;
+            margin-top: 20px;
+            color: white;
+        }
+
+        @media (max-width: 700px) {
+            .weather-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌤️ Weather Forecast</h1>
+        <p class="subtitle">Data cuaca real-time dari OpenWeatherMap API</p>
+
+        <div class="controls">
+            <input type="text" id="cityInput" class="city-input" 
+                   placeholder="Nama kota (contoh: Jakarta)" value="Jakarta">
+            <button id="btnFetch">🔍 Cari Cuaca</button>
+        </div>
+
+        <input type="text" id="searchInput" class="search-box" 
+               placeholder="🔍 Filter berdasarkan tanggal atau deskripsi...">
+
+        <div id="contentArea">
+            <div class="loading">⏳ Memuat data cuaca...</div>
+        </div>
+        <div id="stats" class="stats"></div>
+    </div>
+
+    <script>
+        // ========== API SERVICE LAYER ==========
+        // Catatan: Untuk menggunakan OpenWeatherMap, daftar gratis di https://openweathermap.org/api
+        // Dapatkan API Key, lalu ganti YOUR_API_KEY
+        // API Key free: coba cari di internet "openweathermap free api key test"
+        
+        class WeatherApiService {
+            // Ganti dengan API Key Anda sendiri (daftar gratis di openweathermap.org)
+            static API_KEY = 'bd5e378503939ddaee76f12ad7a97608'; // API Key demo (terbatas)
+            static BASE_URL = 'https://api.openweathermap.org/data/2.5';
+            
+            static async fetchWeatherByCity(city) {
+                try {
+                    // 1. Cari koordinat kota
+                    const geoUrl = `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(city)}&limit=1&appid=${this.API_KEY}`;
+                    const geoResponse = await fetch(geoUrl);
+                    
+                    if (!geoResponse.ok) {
+                        throw new Error(`Gagal mencari kota: ${geoResponse.status}`);
+                    }
+                    
+                    const geoData = await geoResponse.json();
+                    
+                    if (!geoData || geoData.length === 0) {
+                        throw new Error(`Kota "${city}" tidak ditemukan`);
+                    }
+                    
+                    const { lat, lon, name, country } = geoData[0];
+                    
+                    // 2. Ambil prakiraan cuaca 5 hari (setiap 3 jam)
+                    const forecastUrl = `${this.BASE_URL}/forecast?lat=${lat}&lon=${lon}&appid=${this.API_KEY}&units=metric&lang=id`;
+                    const forecastResponse = await fetch(forecastUrl);
+                    
+                    if (!forecastResponse.ok) {
+                        throw new Error(`Gagal mengambil data cuaca: ${forecastResponse.status}`);
+                    }
+                    
+                    const forecastData = await forecastResponse.json();
+                    
+                    return {
+                        success: true,
+                        data: {
+                            city: {
+                                name: name,
+                                country: country,
+                                lat: lat,
+                                lon: lon
+                            },
+                            forecast: forecastData.list,
+                            cityInfo: forecastData.city
+                        }
+                    };
+                    
+                } catch (error) {
+                    console.error('API Error:', error);
+                    return { success: false, error: error.message };
+                }
+            }
+        }
+
+        // ========== UI RENDERER LAYER ==========
+        class UIRenderer {
+            static renderLoading() {
+                document.getElementById('contentArea').innerHTML = 
+                    '<div class="loading">⏳ Mengambil data cuaca...</div>';
+                document.getElementById('stats').innerHTML = '';
+            }
+
+            static renderError(message) {
+                document.getElementById('contentArea').innerHTML = `
+                    <div class="error-message">
+                        ⚠️ Gagal memuat data cuaca<br>
+                        <strong>Error:</strong> ${this.escapeHtml(message)}<br><br>
+                        <small>💡 Tips: 
+                        - Pastikan nama kota benar (contoh: Jakarta, Surabaya, Bandung)<br>
+                        - Cek koneksi internet Anda<br>
+                        - API Key mungkin perlu registrasi di openweathermap.org
+                        </small>
+                    </div>
+                `;
+                document.getElementById('stats').innerHTML = '';
+            }
+
+            static renderWeatherData(data, searchTerm = '') {
+                if (!data || !data.forecast || data.forecast.length === 0) {
+                    this.renderError('Data cuaca tidak tersedia');
+                    return;
+                }
+
+                // Filter berdasarkan search
+                let filteredData = data.forecast;
+                if (searchTerm) {
+                    filteredData = data.forecast.filter(item => {
+                        const tanggal = item.dt_txt;
+                        const deskripsi = item.weather[0].description;
+                        return tanggal.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                               deskripsi.toLowerCase().includes(searchTerm.toLowerCase());
+                    });
+                }
+
+                if (filteredData.length === 0) {
+                    document.getElementById('contentArea').innerHTML = `
+                        <div class="error-message" style="background:#fff0d6; color:#e67e22;">
+                            🔍 Tidak ada data cuaca yang cocok dengan "${this.escapeHtml(searchTerm)}"
+                        </div>
+                    `;
+                    document.getElementById('stats').innerHTML = 
+                        `<div class="stats">📊 Menampilkan 0 dari ${data.forecast.length} prakiraan</div>`;
+                    return;
+                }
+
+                // Header kota
+                const cityHeader = `
+                    <div style="text-align: center; margin-bottom: 20px; color: white;">
+                        <h2>📍 ${this.escapeHtml(data.city.name)}, ${this.escapeHtml(data.city.country)}</h2>
+                        <p>Prakiraan cuaca 5 hari ke depan (setiap 3 jam)</p>
+                    </div>
+                `;
+
+                const cardsHtml = filteredData.map(item => this.createWeatherCard(item)).join('');
+                document.getElementById('contentArea').innerHTML = cityHeader + `<div class="weather-grid">${cardsHtml}</div>`;
+                document.getElementById('stats').innerHTML = 
+                    `<div class="stats">📊 Menampilkan ${filteredData.length} dari ${data.forecast.length} prakiraan cuaca</div>`;
+            }
+
+            static createWeatherCard(item) {
+                const tanggal = new Date(item.dt_txt);
+                const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit' };
+                const tanggalStr = tanggal.toLocaleDateString('id-ID', options);
+                
+                const suhu = Math.round(item.main.temp);
+                const feelsLike = Math.round(item.main.feels_like);
+                const kelembaban = item.main.humidity;
+                const tekanan = item.main.pressure;
+                const kecepatanAngin = item.wind.speed;
+                const deskripsi = item.weather[0].description;
+                const icon = item.weather[0].icon;
+                const iconUrl = `https://openweathermap.org/img/wn/${icon}@2x.png`;
+                
+                let weatherIcon = '🌤️';
+                if (deskripsi.includes('hujan')) weatherIcon = '🌧️';
+                else if (deskripsi.includes('cerah')) weatherIcon = '☀️';
+                else if (deskripsi.includes('berawan')) weatherIcon = '☁️';
+                else if (deskripsi.includes('mendung')) weatherIcon = '☁️';
+                else if (deskripsi.includes('petir')) weatherIcon = '⛈️';
+
+                return `
+                    <div class="weather-card">
+                        <div class="card-header">
+                            <h3>${weatherIcon} ${this.escapeHtml(deskripsi)}</h3>
+                            <div class="date">📅 ${this.escapeHtml(tanggalStr)}</div>
+                        </div>
+                        <div class="card-body">
+                            <img src="${iconUrl}" alt="${deskripsi}" style="width: 60px; margin: 0 auto;">
+                            <div class="temperature">
+                                ${suhu}°C
+                            </div>
+                            <div class="weather-desc">
+                                Terasa seperti ${feelsLike}°C
+                            </div>
+                            <div class="weather-details">
+                                <div class="detail-item">
+                                    <div class="detail-label">💧 Kelembaban</div>
+                                    <div class="detail-value">${kelembaban}%</div>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="detail-label">🌬️ Angin</div>
+                                    <div class="detail-value">${kecepatanAngin} m/s</div>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="detail-label">📊 Tekanan</div>
+                                    <div class="detail-value">${tekanan} hPa</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            static escapeHtml(str) {
+                if (!str) return '';
+                return String(str).replace(/[&<>]/g, function(m) {
+                    if (m === '&') return '&amp;';
+                    if (m === '<') return '&lt;';
+                    if (m === '>') return '&gt;';
+                    return m;
+                });
+            }
+        }
+
+        // ========== CONTROLLER LAYER ==========
+        class WeatherAppController {
+            constructor() {
+                this.currentData = null;
+                this.searchTerm = '';
+                this.init();
+            }
+
+            init() {
+                this.bindEvents();
+                this.loadWeather('Jakarta');
+            }
+
+            bindEvents() {
+                document.getElementById('btnFetch').addEventListener('click', () => {
+                    const city = document.getElementById('cityInput').value.trim();
+                    if (city) {
+                        this.loadWeather(city);
+                    }
+                });
+
+                document.getElementById('searchInput').addEventListener('input', (e) => {
+                    this.searchTerm = e.target.value;
+                    this.applyFilter();
+                });
+
+                document.getElementById('cityInput').addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        document.getElementById('btnFetch').click();
+                    }
+                });
+            }
+
+            async loadWeather(city) {
+                UIRenderer.renderLoading();
+                
+                const result = await WeatherApiService.fetchWeatherByCity(city);
+                
+                if (result.success) {
+                    this.currentData = result.data;
+                    this.applyFilter();
+                } else {
+                    UIRenderer.renderError(result.error);
+                    this.currentData = null;
+                }
+            }
+
+            applyFilter() {
+                if (!this.currentData) return;
+                UIRenderer.renderWeatherData(this.currentData, this.searchTerm);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            new WeatherAppController();
+        });
+    </script>
+</body>
+</html>
