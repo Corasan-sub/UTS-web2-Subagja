@@ -6,7 +6,7 @@
 **Mata Kuliah:** Pemrograman Web 2
 
 ## Link Video Demonstrasi
-[Klik di sini untuk menonton video demo](https://youtu.be/LINK_VIDEO_ANDA)
+[https://drive.google.com/drive/folders/1AhaHR01uY7BSVeIbCHN2k69l-UF0S5LV?usp=drive_link]
 
 ## API yang Digunakan
 - **Sumber:** JSONPlaceholder
